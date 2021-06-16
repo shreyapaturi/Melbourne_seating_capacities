@@ -1,0 +1,421 @@
+<!-- 
+-----------------
+DATA USED:
+-----------------
+Block Shapefiles: https://data.melbourne.vic.gov.au/Business/Blocks-for-Census-of-Land-Use-and-Employment-CLUE-/aia8-ryiq
+Melbourne CBD shapefile(extracted from CLUE small areas): https://data.melbourne.vic.gov.au/Business/Small-Areas-for-Census-of-Land-Use-and-Employment-/gei8-3w86
+Cafes and Restaurants Data: https://data.melbourne.vic.gov.au/Business/Cafes-and-restaurants-with-seating-capacity/xt2y-tnn9
+-------------------
+DATA PREPROCESSING
+-------------------
+1.1. Calculating the number of cafes within each block for each year:
+Step 1: Filtered by year, and CLUE Area
+
+Step 2: Filtered by seating type(selecting only indoor as the number of indoor facilities are greater)
+This ensures that both the property IDs and the trading names together are unique.
+
+Step 3: Calculated outdoor seating 
+=IFNA(INDEX($O$2:$O$572,MATCH(C2&E2,$M$2:$M$572&$N$2:$N$572,0)),"Not found")
+This excel command looks up two columns together(property id and trading name) and outputs the corresponding value(outdoor seats)
+$O$2:$O$572-outdoor seating values
+C2&E2: property id and trading name respectively in the main table
+$M$2:$M$572: property id in the outdoor seating capacity table
+$N$2:$N$572: trading name in the outdoor seating capacity table
+0: returns exact value
+& : concatenation operator
+IFNA, "Not found": If values are not found
+Replace "Not found" with 0(number)
+Tutorial:https://www.excel-easy.com/examples/two-column-lookup.html
+
+Step 4: Combined all the data into one place
+
+Step 5: Used PIVOT table to calculate all the fields(Block_ID,Total Seats(2015-2019),Indoor Seats(2015-2019),Outdoor Seats(2015-2019),Percent outdoor(2015-2019)) for each block 
+I feel convenient in using excel, and filtering data in excel ensured that I didn't get any errors in ArcGIS)
+
+Step 6: Joined the final .CSV file to the block shapefile in ArcGIS Pro
+
+Step 7: Converted shapefile into GeoJSON in ArcGIS Pro-->
+
+<!DOCTYPE HTML>
+<html lang="en">
+
+<head>
+    <meta charset='utf-8' />
+    <!--Links to Mapbox API -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v1.12.0/mapbox-gl.css' rel="stylesheet" />
+
+    <!--Links to Google typefaces-->
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Homemade+Apple&family=Raleway:ital,wght@0,200;0,300;0,400;0,500;0,600;1,200;1,300;1,400;1,500;1,600&display=swap" rel="stylesheet">
+
+    <!--Link to the CSS stylesheet used for the assessment-->
+    <link rel="stylesheet" type="text/css" href="s3853274_style_1.css" />
+
+    <!--Links to Chart.js ajax library to display line charts-->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.3.2/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+
+    <!-- Web page title with assessment Name, student Name, and ID -->
+    <title> GEOM2080 Interactive Mapping Assignment, Shreya Paturi, S3853274 </title>
+
+</head>
+
+<body>
+    <!--Intiating HTML and map elements -->
+    <div id='map'></div>
+    <div id='console'>
+        <!-- console element used for displaying legend, findings, and line charts -->
+        <!-- Title of the interactive map -->
+        <h1>Cafes/Restaurants/Bars Seating Capacity:</h1>
+        <h2> Is outdoor seating becoming more popular ? </h2>
+        <p>Data: <a href='https://data.melbourne.vic.gov.au/Business/Cafes-and-restaurants-with-seating-capacity/xt2y-tnn9'>Cafes,Restaurants and Bar Seating Capacity</a> Melbourne , 2015-2019</p>
+        <div class='session'>
+            <!-- legend -->
+            <h3>Percentage of Outdoor seats (2019)</h3>
+            <div class='row colors'>
+            </div>
+            <!-- legend classes -->
+            <div class='row labels'>
+                <div class='label'>0 to 9</div>
+                <div class='label'>10 to 19</div>
+                <div class='label'>20 to 29</div>
+                <div class='label'>30 to 44</div>
+                <div class='label'>45 to 55</div>
+            </div>
+        </div>
+
+        <!-- Section created for the description-->
+        <div id='databox'>
+            <h5>
+                <p class="description">Most of the blocks that have a higher percentage of outdoor seating capacity in the cafes/restaurants are situated along the fringe of the CBD area, where more open spaces such as gardens and several Melbourne attractions are located.
+                </p>
+            </h5>
+            <div id='interactionbox'>
+                <h6>
+                    <p><em>Click</em> on the Melbourne attractions<img src="https://image.flaticon.com/icons/png/128/1397/1397898.png" style="width:15px;height:15px;"> in or near each block, and <em>hover</em> over the block points to explore each block's
+                        seating capacity trend. <em>Zoom in</em> to view the locations of major cafes and restaurants. </p>
+                </h6>
+            </div>
+        </div>
+        <!-- Section created for line chart-->
+        <div id="chartbox"></div>
+
+    </div>
+
+</body>
+<!-------------------------------------->
+<!-- Javascript -->
+<!-------------------------------------->
+
+<script>
+    // Mapbox Access token to load the map  and link this to the map div:
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic2hyZXlhcGF0dXJpNjYiLCJhIjoiY2ttMGlhNTZvMm11dTJ3cDM3MTQwMHFtcCJ9.g48GU5Y6R8lB3Wc28woUnQ';
+    // ---------------------------------------------------------------------------
+    // LOADING MAPBOX STYLE AND SETTING CENTER COORDINATES, ZOOM MIN AND MAX
+    //-----------------------------------------------------------------------------
+    var map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/shreyapaturi66/ckpsltr6j1z2i19pub7twkrk0', //Mapbox style
+        center: [144.956533, -37.813894],
+        zoom: 14.3,
+        maxZoom: 17, //for cafes and restaurants locations  
+        minZoom: 14
+    });
+    // -------------------------
+    // ADDING MAPBOX LAYERS
+    //--------------------------
+    map.on('load', function() {
+
+        map.addLayer({
+            'id': 'block_points_2019',
+            'type': 'circle',
+            'source': {
+                type: 'vector',
+                url: 'mapbox://shreyapaturi66.2pkbd69i' // Mapbox Tileset Map ID for the block points
+            },
+
+            'source-layer': 'Blocks_cafes_final-5qtl6f', // the name of the point layer in tileset
+
+            "paint": {
+                'circle-color': [
+                    'interpolate', ['linear'],
+                    ['number', ['get', 'Blocks_cafes_final.Percent_out_2019']],
+
+                    0, '#ffffd4', // 0 to 9 % outdoor seats
+                    10, '#fed98e', // 10 to 19 % outdoor seats
+                    20, '#fe9929', // 20 to 29 % outdoor seats
+                    30, '#d95f0e', // 30 to 44 % outdoor seats
+                    45, '#993404', // 45 to 55 % outdoor seats
+
+                ],
+                'circle-stroke-width': 1,
+                'circle-stroke-color': '#808080', //grey outline given to the circles 
+                'circle-opacity': 1,
+                'circle-radius': [ // size of the circles
+                    'interpolate', ['linear'],
+                    ['number', ['get', 'Blocks_cafes_final.Percent_out_2019']],
+                    0, 3,
+                    10, 6, //increment of 3 points
+                    20, 9, //increment of 3 points
+                    30, 13, //increment of 4 points
+                    45, 18 //increment of 5 points
+
+                ],
+
+            }
+        });
+        // ---------------------------
+        // LINE CHART
+        //----------------------------
+        //Code for making the charts was inspired from Helen Walpole's Melbourne Melting Point Map
+        // Customised the code to include additional lines in the chart, removed and added certain chart options 
+        map.on('mouseenter', 'block_points_2019', function(e) {
+            // Update databox with narrative text relating to hovered location 
+            document.getElementById('databox').innerHTML = "Block ID: " + e.features[0].properties["Blocks_cafes_final.Block_ID"];
+            //Update chartbox and give dimensions for the same
+            document.getElementById('chartbox').innerHTML = '<canvas id="LineChart" padding-top="20" width="280px" height="210px" ></canvas>'
+            var ctx = document.getElementById('LineChart').getContext('2d');
+
+            var LineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['2015', '2016', '2017', '2018', '2019'], //x axis labels for the chart
+                    datasets: [{
+                            label: "Total", //Total number of seats(Indoor + Outdoor) in Blocks
+                            fontFamily: "Raleway, sans-serif",
+                            fill: false, //no fill as this is not an area chart
+                            borderColor: [
+                                '#003f5c' //line colour 
+                            ],
+                            pointBackgroundColor: "#003f5c", //point colour
+                            pointBorderColor: "#fff", //point border colour
+                            borderWidth: 1.5, //line width
+                            data: [
+                                e.features[0].properties["Blocks_cafes_final.Total_seats_2015"], //Total no. of seats in 2015
+                                e.features[0].properties["Blocks_cafes_final.Total_seats_2016"], //Total no. of seats in 2016
+                                e.features[0].properties["Blocks_cafes_final.Total_seats_2017"], //Total no. of seats in 2017
+                                e.features[0].properties["Blocks_cafes_final.Total_seats_2018"], //Total no. of seats in 2018
+                                e.features[0].properties["Blocks_cafes_final.Total_seats_2019"] //Total no. of seats in 2019
+                            ]
+                        }, {
+                            label: "Indoor", //Number of Indoor seats in Blocks
+                            fill: false, //no fill as this is not an area chart
+                            borderColor: [
+                                '#bc5090' //line colour 
+                            ],
+                            pointBackgroundColor: "#bc5090", //point colour
+                            pointBorderColor: "#fff", //point border colour
+                            borderWidth: 1.5, //line width
+                            data: [
+                                e.features[0].properties["Blocks_cafes_final.Indoor_seats_2015"], //No. of Indoor seats in 2015
+                                e.features[0].properties["Blocks_cafes_final.Indoor_seats_2016"], //No. of Indoor seats in 2016
+                                e.features[0].properties["Blocks_cafes_final.Indoor_seats_2017"], //No. of Indoor seats in 2017
+                                e.features[0].properties["Blocks_cafes_final.Indoor_seats_2018"], //No. of Indoor seats in 2018
+                                e.features[0].properties["Blocks_cafes_final.Indoor_seats_2019"] //No. of Indoor seats in 2019
+                            ]
+                        }, {
+                            label: "Outdoor", //Number of Outdoor seats in Blocks
+                            fill: false, //no fill as this is not an area chart
+                            borderColor: [
+                                '#ff6361' //line colour 
+                            ],
+                            pointBackgroundColor: "#ff6361", //point colour
+                            pointBorderColor: "#fff", //point border colour
+                            borderWidth: 1.5, //line width
+                            data: [
+                                e.features[0].properties["Blocks_cafes_final.Outdoor_seats_2015"], //No. of Outdoor seats in 2015
+                                e.features[0].properties["Blocks_cafes_final.Outdoor_seats_2016"], //No. of Outdoor seats in 2016
+                                e.features[0].properties["Blocks_cafes_final.Outdoor_seats_2017"], //No. of Outdoor seats in 2017
+                                e.features[0].properties["Blocks_cafes_final.Outdoor_seats_2018"], //No. of Outdoor seats in 2018
+                                e.features[0].properties["Blocks_cafes_final.Outdoor_seats_2019"] //No. of Outdoor seats in 2019
+                            ]
+                        }
+
+                    ]
+
+
+                },
+                options: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'center',
+                        labels: {
+                            boxWidth: 14, //legend box width
+                            fontSize: 12,
+                            fontFamily: "Raleway, sans-serif",
+                        }
+
+
+                    },
+                    scales: {
+                        yAxes: [{
+                            display: true,
+                            ticks: {
+                                suggestedMin: 0,
+                                fontFamily: "Raleway, sans-serif" //changing the default font style for y axis
+
+                            }
+                        }],
+                        xAxes: [{
+                            display: true,
+                            ticks: {
+                                fontFamily: "Raleway, sans-serif" //changing the default font style for x axis
+                            }
+                        }]
+                    },
+                    events: [],
+                    title: {
+                        display: true,
+                        text: ['Graph shows the no. of seating capacities for each block'], //graph description
+                        position: 'bottom',
+                        fontColor: '#494845',
+                        fontStyle: 'normal',
+                        fontFamily: "Raleway, sans-serif",
+                    }
+                }
+            });
+
+        });
+        // --------------------
+        // MARKERS AND POPUPS
+        //---------------------
+        //I received a great help from Jennifer Dubois for the popup and marker codes and I would like to thank her immensely for giving me valuable inputs for the map
+        //The content for the popups was given by Jennifer and was also combined from the info available on the internet.
+
+        //coordinate variables for markers used with pop-ups
+        //these are locations of Melbourne attractions that are in and around the blocks having higher % outdoor seating capacity(45-55)
+        var fed_square = [144.9689636, -37.81785166];
+        var queen_victoria_market = [144.9571585, -37.8075002];
+        var rmit_university = [144.964453, -37.80807954];
+        var state_library_victoria = [144.9643303, -37.80998522];
+        var arts_centre_melbourne = [144.9679921, -37.8199901];
+        var flagstaff_gardens = [144.954472, -37.810435];
+        var carlton_gardens = [144.971251, -37.805418];
+        var birrarung_marr = [144.974252, -37.818691];
+        var alexandra_gardens = [144.972142, -37.820527];
+
+        // add point of interest markers and create a popup for them
+
+        //Federation square
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>Federation Square</h4><h5> It is a venue for arts, culture and public events on the edge of the Melbourne CBD. There is a Transport hotel and bar is a three-level hotel complex adjacent to the southern shard on the south western corner of the square. It has a ground-floor public bar, restaurant and cocktail lounge on the rooftop.</h5><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Federation_Square_%285399921791%29.jpg/375px-Federation_Square_%285399921791%29.jpg" alt = "Federation square aerial view activity" width= "200" height="120">');
+        // create DOM element for the marker(tried creating a marker function- geojson.features.forEach(function(marker), but did not work. So added DOM element for each marker seperately
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(fed_square)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //Queen Victoria Markets
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>Queen Victoria Markets</h4><h5>The largest open-air market in the Southern Hemisphere has been operating since 1878. The markets offer gourmet foods, gifts and souvenirs, and several local cafes and restaurants and bars.</h5> <img src="https://img.traveltriangle.com/blog/wp-content/uploads/2019/01/Queen-Vic-Market-Ultimate-Foodie-Tour.jpg" alt = " Queen Victoria Markets restaurants" width= "200" height="120">');
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(queen_victoria_market)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //RMIT_University
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>RMIT University</h4><h5>Founded in 1887, RMIT is a public research university. With approximately 85,000 students comes the demand for eateries and entertainment spaces, such as cafes,bars and restaurants.</h5><img src= "https://s3.studentvip.com.au/photos/beside-the-green-ids-space-entr-156287-small.jpg" alt = " RMIT University cafeteria" width= "200" height="120">');
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(rmit_university)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //Arts Centre Melbourne
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>Arts Centre Melbourne</h4><h5> is Australia\'s largest performing arts centre, hosting a range of live performances including plays, operas, ballets, and concerts. As many people visit the place, many restaurants hare located around the place.</h5><img src= "https://media-cdn.tripadvisor.com/media/photo-s/11/ac/22/a0/arts-centre-melbourne.jpg" width= "200" height="120">');
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(arts_centre_melbourne)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //Flagstaff Gardens
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>Flagstaff Gardens</h4><h5> is the oldest park in Melbourne, first established in 1862. Today it is one of the most visited and widely used parks in the city by residents, nearby office workers and tourists. The gardens are notable for their archaeological, horticultural, historical and social significance to the history of Melbourne.</h5> <img src= "https://media.radissonhotels.net/image/radisson-on-flagstaff-gardens-melbourne/restaurant/16256-113884-f63619430_3xl.jpg?impolicy=Card" alt = "Flagstaff garden view from restaurant" width= "200" height="120">');
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(flagstaff_gardens)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //State Library Victoria
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>The State Library Victoria</h4><h5> is the main library of the Australian state of Victoria. Located in Melbourne, it was established in 1854 as the Melbourne Public Library, making it Australia\'s oldest public library and one of the first free libraries in the world. It is also Australia\'s busiest library where many people come to gather in its open spaces too.</h5> <img src = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/StateLibraryofVictoria%2C_Oct_2005.jpg/360px-StateLibraryofVictoria%2C_Oct_2005.jpg" alt = " State Library Victoria Open Space" width = "200" height = "120">');
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(state_library_victoria)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //Carlton Gardens
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>The Carlton Gardens</h4><h5> is a World Heritage Site, and contains the Royal Exhibition Building and Melbourne Museum.The Victorian-era Hochgurtel Fountain is a famous feature of these late 19th century gardens.It is an important tourist destination also used as a barbeque and picnic spot and also has cafes and restaurants surrounding the gardens on the Brunswick and the Lygon streets for visiting tourists.</h5> <img src= "https://whatson.melbourne.vic.gov.au/rails/active_storage/representations/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaWxrWTJObU5UazRaUzFqT0dFMExUUTJNR1l0WWpFMVppMDVPR0k0Wmpaak5qRXhaRFlHT2daRlZBPT0iLCJleHAiOm51bGwsInB1ciI6ImJsb2JfaWQifX0=--4e7e41a466670f1a0d7ea6ba7af232d912301f04/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCam9VY21WemFYcGxYM1J2WDJ4cGJXbDBXd2RwQXE0Q2FRTE1BUT09IiwiZXhwIjpudWxsLCJwdXIiOiJ2YXJpYXRpb24ifX0=--6b649797a60ed07e66abb743103d0e385829f44a/carlton-gardens-203.jpg" alt = " Carlton Gardens Entrance" width= "200" height="120">');
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(carlton_gardens)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //Birrarung Marr
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>Birrarung Marr</h4><h5> is a 8 hectare park that lies immediately to the south-east of the central business district, between Flinders Street and the north bank of the Yarra River. The gardens serve as a social venue supporting individual and community activities as well as major events.</h5> <img src= "https://whatson.melbourne.vic.gov.au/rails/active_storage/representations/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaWxtT0RjMk1ERXdNaTA1TXpjMkxUUXdPVEV0T1dZd01DMHlOMlEzWm1RMllqSmlPVFVHT2daRlZBPT0iLCJleHAiOm51bGwsInB1ciI6ImJsb2JfaWQifX0=--eec718a43171d7d27efddef5b317d4dd4600f16e/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCam9VY21WemFYcGxYM1J2WDJ4cGJXbDBXd2RwQXE0Q2FRTE1BUT09IiwiZXhwIjpudWxsLCJwdXIiOiJ2YXJpYXRpb24ifX0=--6b649797a60ed07e66abb743103d0e385829f44a/Birrarung-Marr-3.png"alt = "Birrarung Marr" width= "200" height="120">');
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(birrarung_marr)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+        //Alexandra Gardens
+        var popup = new mapboxgl.Popup({
+            offset: 25
+        }).setHTML('<h4>Alexandra Gardens</h4><h5> are set out on five hectares of land off St Kilda Road, at the foot of Princes Bridge between the Yarra River and Alexandra Avenue.The garden has riverfront barbecues, popular venues for alfresco office Christmas parties and Moomba celebrations.</h5>  <img src= "https://content.api.news/v3/images/bin/c129ec2ca8cd4821dae0422e3a94761f?width=650" alt = "Alexandra Gardens outdoor food facilities" width= "200" height="120">');
+
+        // create DOM element for the marker
+        var el = document.createElement('div');
+        el.id = 'marker';
+
+        // create the marker
+        new mapboxgl.Marker(el)
+            .setLngLat(alexandra_gardens)
+            .setPopup(popup) // sets a popup on this marker
+            .addTo(map);
+
+    });
+</script>
