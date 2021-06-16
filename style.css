@@ -1,0 +1,147 @@
+ /* ---------------- */
+ /* GENERAL */
+ /* ----------------- */
+ 
+ body {
+     margin: 0;
+     padding: 0;
+     font-family: 'Raleway', sans-serif;
+ }
+ 
+ #map {
+     position: absolute;
+     top: 0;
+     bottom: 0;
+     width: 100%;
+ }
+ /* ---------------- */
+ /* HEADINGS */
+ /* ----------------- */
+ 
+ h1 {
+     font-size: 30px;
+     line-height: 30px;
+     font-family: 'Homemade Apple', cursive;
+     font-weight: 100;
+     color: rgb(37, 37, 37);
+ }
+ 
+ h2 {
+     font-size: 20px;
+     line-height: 20px;
+     margin-bottom: 10px;
+ }
+ 
+ h3 {
+     font-size: 15px;
+     line-height: 20px;
+     margin-bottom: 10px;
+     width: 350px;
+ }
+ 
+ h5 {
+     font-weight: 480;
+ }
+ 
+ h6 {
+     font-weight: 400;
+     font-size: 12px;
+ }
+ /* ---------------- */
+ /* DATA REFERENCING */
+ /* ----------------- */
+ 
+ a {
+     text-decoration: none;
+     color: #d95f0e;
+ }
+ /* ---------------- */
+ /* DESCRIPTION COLOUR */
+ /* ----------------- */
+ 
+ p.description {
+     color: #b11010;
+ }
+ /* ---------------- */
+ /* CONSOLE */
+ /* ----------------- */
+ /* Console on the left of the map that contains title, legend and description */
+ 
+ #console {
+     position: absolute;
+     width: 375px;
+     margin: 10px;
+     padding: 10px 20px;
+     background-color: #f2eee8;
+     border-radius: 15px;
+     border: solid 2px;
+     border-color: #b11010;
+ }
+ 
+ #databox {
+     width: 100%;
+     text-align: left;
+     font-size: 15px;
+     padding-bottom: 15px;
+     padding-top: 7px;
+ }
+ /* ---------------- */
+ /* LEGEND */
+ /* ----------------- */
+ 
+ .session {
+     margin-bottom: 20px;
+     width: 375px;
+ }
+ /* legend row */
+ 
+ .row {
+     height: 12px;
+     width: 350px;
+ }
+ /* legend colours */
+ 
+ .colors {
+     margin-bottom: 5px;
+     /* creating definite boundaries between classes */
+     background: linear-gradient(to right, #ffffd4 20%, #fed98e 20% 40%, #fe9929 40% 60%, #d95f0e 60% 80%, #993404 80%);
+     opacity: 1;
+ }
+ /* legend labels */
+ 
+ .label {
+     width: 18%;
+     font-size: 13px;
+     display: inline-block;
+     text-align: center;
+     margin-left: 2px;
+ }
+ /* -------------------------- */
+ /* MARKERS */
+ /* ----------------------- */
+ 
+ #marker {
+     background-image: url('https://image.flaticon.com/icons/png/128/1397/1397898.png');
+     background-size: cover;
+     width: 20px;
+     height: 20px;
+     border-radius: 50%;
+     cursor: pointer;
+ }
+ /* -------------------------- */
+ /* POPUPS */
+ /* ----------------------- */
+ 
+ .mapboxgl-popup {
+     max-width: 200px;
+     background-color: #f2eee8;
+ }
+ /* popup content css elements */
+ 
+ .mapboxgl-popup-content {
+     text-align: center;
+     color: grey;
+     font-size: 12px;
+     background-color: #f2eee8;
+     font-family: 'Raleway', sans-serif;
+ }
